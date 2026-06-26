@@ -1,0 +1,17 @@
+{
+  "name": "chrome-sharedworker-opfs-repro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal reproducer: SharedWorker OPFS getDirectory() SecurityError in a cross-origin-isolated page (Chrome regression).",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "setup": "playwright install chromium chrome"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}
