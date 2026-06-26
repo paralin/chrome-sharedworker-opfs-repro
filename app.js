@@ -30,11 +30,17 @@ function workerProbe(makePort, label) {
       () => resolve({ ok: false, errorName: 'TimeoutError', errorMessage: `${label} did not reply` }),
       5000,
     )
-    const port = makePort((data) => {
+    try {
+      const port = makePort((data) => {
+        clearTimeout(timer)
+        resolve(data)
+      })
+      port.postMessage('getDirectory')
+    } catch (error) {
+      // e.g. a browser without SharedWorker throws from the constructor.
       clearTimeout(timer)
-      resolve(data)
-    })
-    port.postMessage('getDirectory')
+      resolve({ ok: false, errorName: error.name, errorMessage: error.message })
+    }
   })
 }
 

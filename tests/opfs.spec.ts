@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 type Probe = { label: string; ok: boolean; errorName?: string; errorMessage?: string }
 
-// Known-good ceiling and known-bad floor from the measured version matrix
+// Known-good ceiling and known-bad floor from the measured Chrome version matrix
 // (see README.md / ISSUE.md). OPFS in a fresh isolated-page SharedWorker works
 // up to and including 149.0.7827.55 and is denied from 149.0.7827.197 onward.
 const LAST_GOOD = '149.0.7827.55'
@@ -21,43 +21,57 @@ function compareVersion(a: string, b: string): number {
 test('OPFS getDirectory() across page, DedicatedWorker, and SharedWorker', async ({
   page,
   browser,
+  browserName,
 }) => {
   const version = browser.version()
-  test.info().annotations.push({ type: 'chrome-version', description: version })
 
   await page.goto('/')
-
-  // The page must actually be cross-origin isolated, or the repro is invalid.
-  expect(await page.evaluate(() => crossOriginIsolated), 'page is crossOriginIsolated').toBe(true)
-
   await expect
     .poll(async () => (await page.evaluate(() => (globalThis as any).__opfsResults))?.length ?? 0)
     .toBe(3)
+  const coi = await page.evaluate(() => crossOriginIsolated)
   const results = (await page.evaluate(() => (globalThis as any).__opfsResults)) as Probe[]
   const byLabel = Object.fromEntries(results.map((r) => [r.label, r]))
-
-  // OPFS itself works on every tested version from the page and a DedicatedWorker.
-  expect(byLabel['Page (document)'].ok, `page OPFS on ${version}`).toBe(true)
-  expect(byLabel['DedicatedWorker'].ok, `DedicatedWorker OPFS on ${version}`).toBe(true)
-
-  // The SharedWorker is the regression. Assert the measured matrix: pass on
-  // builds at or before LAST_GOOD, fail (SecurityError) on builds at or after
-  // FIRST_BAD. Versions in the unmeasured gap are reported, not asserted.
+  const pageProbe = byLabel['Page (document)']
+  const dedicated = byLabel['DedicatedWorker']
   const shared = byLabel['SharedWorker']
-  if (compareVersion(version, LAST_GOOD) <= 0) {
-    expect(shared.ok, `SharedWorker OPFS should still work on ${version}`).toBe(true)
-  } else if (compareVersion(version, FIRST_BAD) >= 0) {
-    expect(
-      shared.ok,
-      `SharedWorker OPFS is denied on ${version}: ${shared.errorName}: ${shared.errorMessage}`,
-    ).toBe(false)
-    expect(shared.errorName, 'denial is a SecurityError').toBe('SecurityError')
-  } else {
-    test
-      .info()
-      .annotations.push({
-        type: 'note',
-        description: `SharedWorker on ${version}: ok=${shared.ok} (between ${LAST_GOOD} and ${FIRST_BAD}; not asserted)`,
-      })
+
+  test.info().annotations.push({
+    type: 'cross-browser',
+    description:
+      `${browserName} ${version} coi=${coi} | page=${pageProbe.ok} ` +
+      `dedicated=${dedicated.ok} shared=${shared.ok}` +
+      (shared.ok ? '' : ` (${shared.errorName})`),
+  })
+
+  if (browserName === 'chromium') {
+    // Chrome must be cross-origin isolated for the repro to be valid, and OPFS
+    // works from the page and a DedicatedWorker on every tested version.
+    expect(coi, 'page is crossOriginIsolated').toBe(true)
+    expect(pageProbe.ok, `page OPFS on ${version}`).toBe(true)
+    expect(dedicated.ok, `DedicatedWorker OPFS on ${version}`).toBe(true)
+
+    // The SharedWorker is the regression: pass at/before LAST_GOOD, fail
+    // (SecurityError) at/after FIRST_BAD, unmeasured in between.
+    if (compareVersion(version, LAST_GOOD) <= 0) {
+      expect(shared.ok, `SharedWorker OPFS should still work on ${version}`).toBe(true)
+    } else if (compareVersion(version, FIRST_BAD) >= 0) {
+      expect(
+        shared.ok,
+        `SharedWorker OPFS is denied on ${version}: ${shared.errorName}: ${shared.errorMessage}`,
+      ).toBe(false)
+      expect(shared.errorName, 'denial is a SecurityError').toBe('SecurityError')
+    }
+    return
   }
+
+  // Other engines (Firefox, WebKit): the cross-browser claim is that the
+  // SharedWorker is not singled out the way Chrome singles it out. Whatever the
+  // page can do with OPFS, the SharedWorker can do too. (In Firefox both work;
+  // in Playwright's WebKit automation build OPFS is unavailable even on the
+  // page, so both fail equally and the invariant still holds.)
+  expect(
+    shared.ok,
+    `${browserName} ${version}: SharedWorker OPFS (${shared.errorName ?? 'ok'}) should match the page (${pageProbe.errorName ?? 'ok'})`,
+  ).toBe(pageProbe.ok)
 })

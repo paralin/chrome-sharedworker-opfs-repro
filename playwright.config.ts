@@ -61,7 +61,7 @@ function discoverChromes(): { name: string; executablePath: string }[] {
 
 const chromes = discoverChromes()
 
-const projects: Project[] =
+const chromeProjects: Project[] =
   chromes.length > 0
     ? chromes.map(({ name, executablePath }) => ({
         name,
@@ -75,6 +75,19 @@ const projects: Project[] =
         // use Playwright's bundled Chromium.
         { name: 'chromium-bundled', use: { ...devices['Desktop Chrome'] } },
       ]
+
+// Other engines, for the cross-browser status. Firefox and WebKit (Safari's
+// engine) use Playwright's bundled builds. Set OPFS_SKIP_OTHER_ENGINES=1 to run
+// only the Chromium version matrix.
+const otherEngines: Project[] =
+  process.env.OPFS_SKIP_OTHER_ENGINES === '1'
+    ? []
+    : [
+        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+        { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+      ]
+
+const projects: Project[] = [...chromeProjects, ...otherEngines]
 
 export default defineConfig({
   testDir: './tests',

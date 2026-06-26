@@ -44,13 +44,40 @@ Expected behavior: the SharedWorker row should also PASS. OPFS does not require
 cross-origin isolation, and the page and DedicatedWorker (same origin, same
 profile) both obtain the OPFS root.
 
-## Automated test (version matrix)
+## Status against other browsers
 
-A [Playwright](https://playwright.dev/) test encodes the matrix below: it runs
-the three probes against every Chrome build it can find and asserts that the page
-and DedicatedWorker always get OPFS, that the SharedWorker still gets OPFS on
-builds up to `149.0.7827.55`, and that it is denied with `SecurityError` from
-`149.0.7827.197` onward.
+The denial is Chromium-specific: only Chrome (on affected builds) denies the
+SharedWorker while the page and DedicatedWorker succeed. Results from this same
+reproducer via Playwright:
+
+| Browser | Page | DedicatedWorker | SharedWorker | Notes |
+| --- | --- | --- | --- | --- |
+| Chrome ≤ 149.0.7827.55 | PASS | PASS | PASS | before the regression |
+| Chrome ≥ 149.0.7827.197 | PASS | PASS | **FAIL** (`SecurityError`) | the regression |
+| Firefox 151 | PASS | PASS | PASS | **not affected**; `crossOriginIsolated` works |
+| Safari / WebKit (Playwright 26.5) | FAIL | FAIL | FAIL (`UnknownError`) | see caveat below |
+
+Firefox does not single out the SharedWorker: the page, DedicatedWorker, and
+SharedWorker all obtain the OPFS root.
+
+Safari caveat: Playwright's bundled WebKit (Safari's engine) returns a generic
+`UnknownError` for `navigator.storage.getDirectory()` even from the page in this
+headless automation build, so OPFS is simply unavailable there and the run
+cannot isolate the SharedWorker behavior. This is an automation-environment
+limitation, not evidence about real Safari; confirm in actual Safari manually
+(`node server.mjs`, then open the printed URL in Safari). Because the page-level
+OPFS result tracks the SharedWorker result on both non-Chromium engines, neither
+exhibits the Chrome-specific "page works but SharedWorker is denied" split.
+
+## Automated test (version matrix + other engines)
+
+A [Playwright](https://playwright.dev/) test encodes the matrix below. For
+Chrome it runs the three probes against every build it can find and asserts that
+the page and DedicatedWorker always get OPFS, that the SharedWorker still gets
+OPFS on builds up to `149.0.7827.55`, and that it is denied with `SecurityError`
+from `149.0.7827.197` onward. It also runs Firefox and WebKit and asserts the
+SharedWorker is never singled out relative to the page (set
+`OPFS_SKIP_OTHER_ENGINES=1` to run only the Chrome matrix).
 
 ```sh
 npm install

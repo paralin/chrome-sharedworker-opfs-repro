@@ -113,6 +113,18 @@ Because the check has no feature flag, runtime flags do not restore access (for
 example, launching `149.0.7827.197` with `--disable-field-trial-config` still
 fails), which also rules out a Finch field trial.
 
+## Other browsers
+
+The denial is Chromium-specific. Running the same reproducer under Firefox 151
+(via the attached Playwright test) obtains the OPFS root from the page, the
+DedicatedWorker, and the SharedWorker alike: Firefox does not single out the
+SharedWorker. WebKit (Safari's engine) could not be used to isolate the behavior
+because the Playwright automation build returns a generic `UnknownError` for
+`navigator.storage.getDirectory()` even from the page, so OPFS is unavailable
+there regardless of context. On both non-Chromium engines the SharedWorker
+result matches the page result; only Chromium produces the "page succeeds but
+SharedWorker is denied" split.
+
 ## Impact
 
 Cross-origin-isolated applications that use a `SharedWorker` as a single OPFS
