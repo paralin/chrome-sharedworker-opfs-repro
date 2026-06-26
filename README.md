@@ -9,6 +9,9 @@ even though the identical call succeeds from the page itself and from a
 This breaks legitimate cross-origin-isolated web apps that use a SharedWorker as
 a single shared OPFS storage owner across tabs.
 
+Upstream bug:
+[crbug.com/528332884](https://issues.chromium.org/issues/528332884).
+
 ## What you need
 
 Just [Node.js](https://nodejs.org/) (any recent version). No dependencies, no
